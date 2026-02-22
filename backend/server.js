@@ -20,7 +20,8 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 app.use(cors({
     origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 // Request Logger
