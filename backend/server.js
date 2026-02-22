@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 5001;
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
     ? process.env.ALLOWED_ORIGINS.split(',')
-    : ["http://localhost:5173", "http://localhost:5175"];
+    : ["http://localhost:5173", "http://localhost:5175", "https://kod-bank-app-kappa.vercel.app"];
 
 app.use(cors({
     origin: allowedOrigins,
