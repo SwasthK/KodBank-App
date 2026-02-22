@@ -31,6 +31,15 @@ router.post('/deposit', async (req, res) => {
             select: { balance: true }
         });
 
+        await prisma.transactions.create({
+            data: {
+                senderId: req.user.userId,
+                receiverId: req.user.userId,
+                amount: amount,
+                type: "DEPOSIT"
+            }
+        });
+
         res.json({ message: 'Deposit successful', balance: user.balance });
     } catch (error) {
         res.status(500).json({ error: 'Error processing deposit' });
@@ -53,6 +62,15 @@ router.post('/withdraw', async (req, res) => {
             where: { id: req.user.userId },
             data: { balance: { decrement: amount } },
             select: { balance: true }
+        });
+
+        await prisma.transactions.create({
+            data: {
+                senderId: req.user.userId,
+                receiverId: req.user.userId,
+                amount: amount,
+                type: "WITHDRAW"
+            }
         });
 
         res.json({ message: 'Withdrawal successful', balance: updatedUser.balance });
@@ -93,6 +111,15 @@ router.post('/transfer', async (req, res) => {
                 where: { id: recipient.id },
                 data: { balance: { increment: amount } }
             });
+
+            await tx.transactions.create({
+                data: {
+                    senderId: senderId,
+                    receiverId: recipient.id,
+                    amount: amount,
+                    type: "TRANSFER"
+                }
+            });
         });
 
         res.json({ message: 'Transfer successful' });
@@ -104,10 +131,20 @@ router.post('/transfer', async (req, res) => {
     }
 });
 
-// Mock Transactions until we create a transactions table if needed
+// Transactions Endpoint
 router.get('/transactions', async (req, res) => {
     try {
-        res.json({ transactions: [] });
+        const transactions = await prisma.transactions.findMany({
+            where: {
+                OR: [
+                    { senderId: req.user.userId },
+                    { receiverId: req.user.userId }
+                ]
+            },
+            orderBy: { createdAt: "desc" }
+        });
+
+        res.json({ transactions });
     } catch (error) {
         res.status(500).json({ error: 'Error fetching transactions' });
     }

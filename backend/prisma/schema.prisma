@@ -1,9 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+ 
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model bank_users {
@@ -16,6 +18,21 @@ model bank_users {
   balance      Float         @default(0)
   createdAt    DateTime      @default(now())
   tokens       bank_tokens[]
+
+  sentTransactions     transactions[] @relation("sentTransactions")
+  receivedTransactions transactions[] @relation("receivedTransactions")
+}
+
+model transactions {
+  id            Int      @id @default(autoincrement())
+  senderId      String
+  receiverId    String
+  amount        Float
+  type          String
+  createdAt     DateTime @default(now())
+
+  sender        bank_users @relation("sentTransactions", fields: [senderId], references: [id])
+  receiver      bank_users @relation("receivedTransactions", fields: [receiverId], references: [id])
 }
 
 model bank_tokens {

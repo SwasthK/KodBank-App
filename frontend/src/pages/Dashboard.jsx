@@ -1,16 +1,18 @@
 import React, { useState, useContext, useEffect } from 'react';
 import {
     Landmark, CreditCard, ArrowDownToLine, ArrowUpFromLine,
-    Send, History, User, Settings, LogOut, Wallet
+    Send, History, User, Settings, LogOut, Wallet, LayoutDashboard
 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
+import Transactions from './Transactions';
+import Transfer from './Transfer';
 
 const Dashboard = () => {
     const { user, logout } = useContext(AuthContext);
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('balance');
+    const [activeTab, setActiveTab] = useState('dashboard');
     const [balance, setBalance] = useState(user?.balance || 0);
 
     const handleLogout = () => {
@@ -28,21 +30,25 @@ const Dashboard = () => {
     };
 
     useEffect(() => {
-        if (activeTab === 'balance') fetchBalance();
+        if (['dashboard', 'balance', 'deposit', 'withdraw', 'transfer'].includes(activeTab)) {
+            fetchBalance();
+        }
     }, [activeTab]);
 
     const navItems = [
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { id: 'balance', label: 'Check Balance', icon: Wallet },
         { id: 'deposit', label: 'Deposit', icon: ArrowDownToLine },
         { id: 'withdraw', label: 'Withdraw', icon: ArrowUpFromLine },
         { id: 'transfer', label: 'Transfer', icon: Send },
         { id: 'transactions', label: 'Transactions', icon: History },
         { id: 'profile', label: 'Profile', icon: User },
-        { id: 'settings', label: 'Settings', icon: Settings },
     ];
 
     const renderContent = () => {
         switch (activeTab) {
+            case 'dashboard':
+                return <DashboardOverview balance={balance} setActiveTab={setActiveTab} />;
             case 'balance':
                 return <BalanceView balance={balance} />;
             case 'deposit':
@@ -50,15 +56,13 @@ const Dashboard = () => {
             case 'withdraw':
                 return <WithdrawView onComplete={fetchBalance} />;
             case 'transfer':
-                return <TransferView onComplete={fetchBalance} />;
+                return <Transfer onComplete={fetchBalance} />;
             case 'transactions':
-                return <TransactionsView />;
+                return <Transactions />;
             case 'profile':
                 return <ProfileView user={user} />;
-            case 'settings':
-                return <SettingsView />;
             default:
-                return <BalanceView balance={balance} />;
+                return <DashboardOverview balance={balance} setActiveTab={setActiveTab} />;
         }
     };
 
@@ -81,8 +85,8 @@ const Dashboard = () => {
                             key={item.id}
                             onClick={() => setActiveTab(item.id)}
                             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === item.id
-                                    ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
-                                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
                                 }`}
                         >
                             <item.icon size={20} />
@@ -92,7 +96,7 @@ const Dashboard = () => {
                 </nav>
 
                 <div className="p-4 mt-auto">
-                    <div className="glass p-4 rounded-xl mb-4 text-sm text-center">
+                    <div className="glass p-4 rounded-xl mb-4 text-sm text-center border-white/10">
                         <p className="text-slate-400">Logged in as</p>
                         <p className="font-semibold text-white truncate">{user?.customerName}</p>
                     </div>
@@ -107,7 +111,7 @@ const Dashboard = () => {
             </aside>
 
             {/* Main Content Area */}
-            <main className="flex-1 flex flex-col relative overflow-y-auto">
+            <main className="flex-1 flex flex-col relative overflow-y-auto w-full">
                 <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none"></div>
                 <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-[100px] pointer-events-none"></div>
 
@@ -124,7 +128,7 @@ const Dashboard = () => {
                     </div>
                 </header>
 
-                <div className="flex-1 p-8 z-10 w-full max-w-5xl mx-auto">
+                <div className="flex-1 p-8 z-10 w-full max-w-6xl mx-auto">
                     {renderContent()}
                 </div>
             </main>
@@ -134,7 +138,97 @@ const Dashboard = () => {
 
 export default Dashboard;
 
-// Sub-components for views
+// ======== Sub-components for views ========
+
+const DashboardOverview = ({ balance, setActiveTab }) => {
+    const [transactions, setTransactions] = useState([]);
+
+    useEffect(() => {
+        const fetchRecentTx = async () => {
+            try {
+                const res = await api.get('/banking/transactions');
+                setTransactions((res.data.transactions || []).slice(0, 5));
+            } catch (error) {
+                console.error('Error fetching transactions:', error);
+            }
+        };
+        fetchRecentTx();
+    }, []);
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <BalanceCard balance={balance} setActiveTab={setActiveTab} />
+            <TransferCard setActiveTab={setActiveTab} />
+            <RecentTransactions transactions={transactions} setActiveTab={setActiveTab} />
+        </div>
+    );
+};
+
+const BalanceCard = ({ balance, setActiveTab }) => (
+    <div className="glass p-6 rounded-2xl flex flex-col justify-between border border-white/10 hover:border-blue-500/30 transition-all hover:-translate-y-1 w-full relative overflow-hidden h-48">
+        <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-500/20 rounded-full blur-[40px]"></div>
+        <div className="flex items-center gap-3 z-10">
+            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+                <Wallet className="text-blue-400" size={20} />
+            </div>
+            <h3 className="text-slate-300 font-medium">Available Balance</h3>
+        </div>
+        <div className="z-10 mt-auto">
+            <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
+                ${balance?.toFixed(2) || '0.00'}
+            </h1>
+        </div>
+    </div>
+);
+
+const TransferCard = ({ setActiveTab }) => (
+    <div className="glass p-6 rounded-2xl flex flex-col justify-between border border-white/10 hover:border-purple-500/30 transition-all hover:-translate-y-1 w-full h-48 relative overflow-hidden cursor-pointer" onClick={() => setActiveTab('transfer')}>
+        <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-purple-500/20 rounded-full blur-[40px]"></div>
+        <div className="flex items-center gap-3 z-10">
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
+                <Send className="text-purple-400" size={20} />
+            </div>
+            <h3 className="text-slate-300 font-medium">Quick Transfer</h3>
+        </div>
+        <div className="z-10 mt-auto flex items-center justify-between text-purple-400 font-semibold group">
+            <span>Send Money Now</span>
+            <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center group-hover:translate-x-1 transition-transform">
+                <Send size={14} />
+            </div>
+        </div>
+    </div>
+);
+
+const RecentTransactions = ({ transactions, setActiveTab }) => (
+    <div className="glass p-6 rounded-2xl border border-white/10 hover:border-white/20 transition-all w-full h-auto col-span-1 md:col-span-1 flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+            <h3 className="text-slate-300 font-medium flex items-center gap-2">
+                <History className="text-slate-400" size={18} /> Recent Activity
+            </h3>
+            <button onClick={() => setActiveTab('transactions')} className="text-xs text-blue-400 hover:text-blue-300">View All</button>
+        </div>
+
+        {transactions.length === 0 ? (
+            <div className="text-center py-6 text-slate-500 text-sm flex-1 flex items-center justify-center">
+                No recent transactions
+            </div>
+        ) : (
+            <ul className="space-y-3 flex-1 flex flex-col justify-start">
+                {transactions.map((tx) => (
+                    <li key={tx.id} className="flex justify-between items-center text-sm border-b border-white/5 pb-2 last:border-0 last:pb-0">
+                        <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${tx.type === 'DEPOSIT' ? 'bg-green-400' : tx.type === 'WITHDRAW' ? 'bg-red-400' : 'bg-blue-400'}`}></div>
+                            <span className="text-slate-300 capitalize">{tx.type.toLowerCase()}</span>
+                        </div>
+                        <span className={`font-medium ${tx.type === 'DEPOSIT' ? 'text-green-400' : tx.type === 'WITHDRAW' ? 'text-red-400' : 'text-blue-400'}`}>
+                            {tx.type === 'DEPOSIT' ? '+' : '-'}${tx.amount.toFixed(2)}
+                        </span>
+                    </li>
+                ))}
+            </ul>
+        )}
+    </div>
+);
 
 const BalanceView = ({ balance }) => (
     <div className="glass p-8 rounded-2xl flex flex-col items-center justify-center min-h-[400px]">
@@ -170,16 +264,16 @@ const DepositView = ({ onComplete }) => {
     };
 
     return (
-        <div className="glass p-8 rounded-2xl max-w-lg mx-auto">
+        <div className="glass p-8 rounded-2xl max-w-lg mx-auto w-full">
             <h3 className="text-2xl font-bold mb-6">Deposit Funds</h3>
-            {msg && <div className="bg-green-500/10 text-green-400 p-3 rounded-lg mb-4 text-center">{msg}</div>}
-            {error && <div className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-4 text-center">{error}</div>}
+            {msg && <div className="bg-green-500/10 text-green-400 border border-green-500/20 p-3 rounded-lg mb-4 text-center">{msg}</div>}
+            {error && <div className="bg-red-500/10 text-red-400 border border-red-500/20 p-3 rounded-lg mb-4 text-center">{error}</div>}
             <form onSubmit={handleDeposit} className="space-y-6">
                 <div>
                     <label className="text-sm font-medium text-slate-300 mb-2 block">Amount to Deposit ($)</label>
-                    <input type="number" min="0.01" step="0.01" required value={amount} onChange={e => setAmount(e.target.value)} className="glass-input text-2xl font-semibold py-4" placeholder="0.00" />
+                    <input type="number" min="0.01" step="0.01" required value={amount} onChange={e => setAmount(e.target.value)} className="glass-input text-2xl font-semibold py-4 w-full" placeholder="0.00" />
                 </div>
-                <button type="submit" disabled={loading} className="glass-button">
+                <button type="submit" disabled={loading} className="glass-button w-full">
                     {loading ? 'Processing...' : 'Confirm Deposit'}
                 </button>
             </form>
@@ -209,16 +303,16 @@ const WithdrawView = ({ onComplete }) => {
     };
 
     return (
-        <div className="glass p-8 rounded-2xl max-w-lg mx-auto">
+        <div className="glass p-8 rounded-2xl max-w-lg mx-auto w-full">
             <h3 className="text-2xl font-bold mb-6">Withdraw Funds</h3>
-            {msg && <div className="bg-green-500/10 text-green-400 p-3 rounded-lg mb-4 text-center">{msg}</div>}
-            {error && <div className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-4 text-center">{error}</div>}
+            {msg && <div className="bg-green-500/10 text-green-400 border border-green-500/20 p-3 rounded-lg mb-4 text-center">{msg}</div>}
+            {error && <div className="bg-red-500/10 text-red-400 border border-red-500/20 p-3 rounded-lg mb-4 text-center">{error}</div>}
             <form onSubmit={handleWithdraw} className="space-y-6">
                 <div>
                     <label className="text-sm font-medium text-slate-300 mb-2 block">Amount to Withdraw ($)</label>
-                    <input type="number" min="0.01" step="0.01" required value={amount} onChange={e => setAmount(e.target.value)} className="glass-input text-2xl font-semibold py-4" placeholder="0.00" />
+                    <input type="number" min="0.01" step="0.01" required value={amount} onChange={e => setAmount(e.target.value)} className="glass-input text-2xl font-semibold py-4 w-full" placeholder="0.00" />
                 </div>
-                <button type="submit" disabled={loading} className="glass-button">
+                <button type="submit" disabled={loading} className="glass-button w-full">
                     {loading ? 'Processing...' : 'Confirm Withdrawal'}
                 </button>
             </form>
@@ -226,79 +320,8 @@ const WithdrawView = ({ onComplete }) => {
     );
 };
 
-const TransferView = ({ onComplete }) => {
-    const [formData, setFormData] = useState({ recipientCustomerId: '', amount: '' });
-    const [msg, setMsg] = useState('');
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true); setMsg(''); setError('');
-        try {
-            const res = await api.post('/banking/transfer', {
-                recipientCustomerId: formData.recipientCustomerId,
-                amount: parseFloat(formData.amount)
-            });
-            setMsg(res.data.message);
-            setFormData({ recipientCustomerId: '', amount: '' });
-            onComplete();
-        } catch (err) {
-            setError(err.response?.data?.error || 'Transfer failed');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="glass p-8 rounded-2xl max-w-lg mx-auto">
-            <h3 className="text-2xl font-bold mb-6">Transfer to Account</h3>
-            {msg && <div className="bg-green-500/10 text-green-400 p-3 rounded-lg mb-4 text-center">{msg}</div>}
-            {error && <div className="bg-red-500/10 text-red-400 p-3 rounded-lg mb-4 text-center">{error}</div>}
-            <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                    <label className="text-sm font-medium text-slate-300 mb-2 block">Recipient Customer ID</label>
-                    <input type="text" required value={formData.recipientCustomerId} onChange={e => setFormData({ ...formData, recipientCustomerId: e.target.value })} className="glass-input py-3 uppercase" placeholder="e.g. A1B2C3D4" />
-                </div>
-                <div>
-                    <label className="text-sm font-medium text-slate-300 mb-2 block">Amount</label>
-                    <input type="number" min="0.01" step="0.01" required value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} className="glass-input text-2xl font-semibold py-4" placeholder="0.00" />
-                </div>
-                <button type="submit" disabled={loading} className="glass-button">
-                    {loading ? 'Processing...' : 'Send Money'}
-                </button>
-            </form>
-        </div>
-    );
-};
-
-const TransactionsView = () => {
-    const [transactions, setTransactions] = useState([]);
-
-    // Mock fetching transactions
-    useEffect(() => {
-        api.get('/banking/transactions').then(res => setTransactions(res.data.transactions || []));
-    }, []);
-
-    return (
-        <div className="glass p-8 rounded-2xl">
-            <h3 className="text-2xl font-bold mb-6">Transaction History</h3>
-            {transactions.length === 0 ? (
-                <div className="text-center py-10 text-slate-400">
-                    <History size={48} className="mx-auto mb-4 opacity-20" />
-                    <p>No recent transactions found.</p>
-                </div>
-            ) : (
-                <ul className="space-y-4">
-                    {/* List items if database logic is added */}
-                </ul>
-            )}
-        </div>
-    );
-};
-
 const ProfileView = ({ user }) => (
-    <div className="glass p-8 rounded-2xl max-w-2xl mx-auto">
+    <div className="glass p-8 rounded-2xl max-w-2xl mx-auto w-full">
         <div className="flex items-center gap-6 mb-8 border-b border-white/10 pb-8">
             <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-4xl shadow-lg shadow-blue-500/20">
                 {user?.customerName?.charAt(0).toUpperCase()}
@@ -309,7 +332,7 @@ const ProfileView = ({ user }) => (
             </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
             <div className="bg-white/5 p-4 rounded-xl border border-white/10">
                 <p className="text-sm text-slate-400 mb-1">Email Address</p>
                 <p className="font-medium">{user?.email}</p>
@@ -323,13 +346,5 @@ const ProfileView = ({ user }) => (
                 <p className="font-medium">{user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</p>
             </div>
         </div>
-    </div>
-);
-
-const SettingsView = () => (
-    <div className="glass p-8 rounded-2xl max-w-2xl mx-auto text-center">
-        <Settings size={48} className="mx-auto mb-4 text-slate-400 opacity-50" />
-        <h3 className="text-2xl font-bold mb-2">Account Settings</h3>
-        <p className="text-slate-400">Settings functionality coming soon.</p>
     </div>
 );
